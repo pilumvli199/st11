@@ -26,32 +26,36 @@ def run_bot():
         print("⚠️ Instruments fetch failed")
         return
 
-    # Example watchlist (NIFTY50 subset)
+    # Example watchlist (subset of NIFTY50)
     watchlist = instruments_df[instruments_df["symbol"].isin([
         "TITAN", "ASIANPAINT", "JSWSTEEL", "NTPC", "POWERGRID"
     ])]
 
-   for symbol in watchlist["symbol"].unique():
-    try:
-        # ✅ आता फक्त 3 arguments देतो: obj, symbol, expiry
-        option_chain = fetch_option_chain(obj, symbol, "26-SEP-2024")
-        if option_chain.empty:
-            continue
+    for symbol in watchlist["symbol"].unique():
+        try:
+            # ✅ FIX: only 3 arguments now (obj, symbol, expiry)
+            option_chain = fetch_option_chain(obj, symbol, "26-SEP-2024")
+            if option_chain.empty:
+                continue
 
-        signals = analyze_option_chain(option_chain)
-        if signals:
-            send_telegram_alert(f"📊 {symbol}: {signals}")
+            signals = analyze_option_chain(option_chain)
+            if signals:
+                send_telegram_alert(f"📊 {symbol}: {signals}")
 
-    except Exception as e:
-        print(f"⚠️ Error processing {symbol}: {e}")
+        except Exception as e:
+            print(f"⚠️ Error processing {symbol}: {e}")
 
 
 if __name__ == "__main__":
+    # Run once at start
     run_bot()
+
+    # Schedule every 5 minutes
     schedule.every(5).minutes.do(run_bot)
 
     while True:
         schedule.run_pending()
         time.sleep(1)
+
 
       

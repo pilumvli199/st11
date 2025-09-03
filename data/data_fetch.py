@@ -18,7 +18,7 @@ def fetch_instruments():
 def fetch_option_chain(obj, symbol):
     """
     Build option chain manually using instruments master + LTP API.
-    Auto-picks nearest expiry for given symbol (e.g., NIFTY, BANKNIFTY).
+    Auto-picks nearest upcoming expiry for given symbol (e.g., NIFTY, BANKNIFTY).
     """
     try:
         instruments = fetch_instruments()
@@ -36,25 +36,31 @@ def fetch_option_chain(obj, symbol):
             print(f"⚠️ No option contracts found for {symbol}")
             return pd.DataFrame()
 
-        # Pick nearest expiry
-        expiries = sorted(options["expiry"].unique())
-        if not expiries:
-            print(f"⚠️ No expiries found for {symbol}")
+        # Pick nearest valid expiry (>= today)
+        try:
+            expiry_dates = pd.to_datetime(options["expiry"], errors="coerce").dropna().unique()
+            expiry_dates = sorted([e for e in expiry_dates if e >= pd.Timestamp.today()])
+            if not expiry_dates:
+                print(f"⚠️ No valid upcoming expiries for {symbol}")
+                return pd.DataFrame()
+            nearest_expiry = expiry_dates[0].strftime("%Y-%m-%d")
+        except Exception as e:
+            print(f"⚠️ Expiry parsing error: {e}")
             return pd.DataFrame()
-        expiry = expiries[0]
 
-        options = options[options["expiry"] == expiry]
+        options = options[options["expiry"] == nearest_expiry]
 
         chain_data = []
         for _, row in options.iterrows():
             try:
-                # ✅ Handle tradingsymbol / symbol mismatch
+                # Handle tradingsymbol / symbol mismatch
                 if "tradingsymbol" in row and pd.notna(row["tradingsymbol"]):
                     tsymbol = row["tradingsymbol"]
                 else:
                     tsymbol = row["symbol"]
 
-                ltp_resp = obj.ltpData("NSE", tsymbol, row["token"])
+                # ✅ Use NFO for options contracts
+                ltp_resp = obj.ltpData("NFO", tsymbol, row["token"])
                 if "data" in ltp_resp and ltp_resp["data"] is not None:
                     ltp = ltp_resp["data"].get("ltp", None)
                 else:
@@ -76,3 +82,5 @@ def fetch_option_chain(obj, symbol):
     except Exception as e:
         print(f"⚠️ Option chain fetch error: {e}")
         return pd.DataFrame()
+
+    

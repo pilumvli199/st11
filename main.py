@@ -31,18 +31,19 @@ def run_bot():
         "TITAN", "ASIANPAINT", "JSWSTEEL", "NTPC", "POWERGRID"
     ])]
 
-    for symbol in watchlist["symbol"].unique():
-        try:
-            option_chain = fetch_option_chain(obj, symbol, "26-SEP-2024")
-            if option_chain.empty:
-                continue
+   for symbol in watchlist["symbol"].unique():
+    try:
+        # ✅ आता फक्त 3 arguments देतो: obj, symbol, expiry
+        option_chain = fetch_option_chain(obj, symbol, "26-SEP-2024")
+        if option_chain.empty:
+            continue
 
-            signals = analyze_option_chain(option_chain)
-            if signals:
-                send_telegram_alert(f"📊 {symbol}: {signals}")
+        signals = analyze_option_chain(option_chain)
+        if signals:
+            send_telegram_alert(f"📊 {symbol}: {signals}")
 
-        except Exception as e:
-            print(f"⚠️ Error processing {symbol}: {e}")
+    except Exception as e:
+        print(f"⚠️ Error processing {symbol}: {e}")
 
 
 if __name__ == "__main__":

@@ -31,19 +31,19 @@ def run_bot():
         "TITAN", "ASIANPAINT", "JSWSTEEL", "NTPC", "POWERGRID"
     ])]
 
-    for symbol in watchlist["symbol"].unique():
-        try:
-            # ✅ expiry auto-detect होईल
-            option_chain = fetch_option_chain(obj, symbol)
-            if option_chain.empty:
-                continue
+   # Watchlist for indices
+watchlist = ["NIFTY", "SENSEX"]
 
-            signals = analyze_option_chain(option_chain)
-            if signals:
-                send_telegram_alert(f"📊 {symbol}: {signals}")
+for symbol in watchlist:
+    try:
+        # Fetch LTP data directly
+        ltp_resp = obj.ltpData("NSE", symbol, "26000")  # token बद्दल instruments master मध्ये बघावे लागेल
+        print(f"📊 {symbol} LTP: {ltp_resp}")
+        send_telegram_alert(f"📊 {symbol}: {ltp_resp}")
 
-        except Exception as e:
-            print(f"⚠️ Error processing {symbol}: {e}")
+    except Exception as e:
+        print(f"⚠️ Error processing {symbol}: {e}")
+
 
 
 if __name__ == "__main__":

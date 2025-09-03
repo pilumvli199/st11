@@ -1,4 +1,6 @@
 from login.angel_login import angel_login
+from data.data_fetch import fetch_instruments, fetch_option_chain
+from analysis.option_chain_analysis import analyze_option_chain
 from alerts.telegram_bot import send_telegram_alert
 import schedule
 import time
@@ -10,35 +12,37 @@ def run_bot():
         print("❌ Login failed, exiting.")
         return
 
-    # Indices watchlist
-    watchlist = ["NIFTY", "SENSEX"]
+    # Watchlist indices for option chain scanning
+    watchlist = ["NIFTY", "BANKNIFTY"]
 
     for symbol in watchlist:
         try:
-            # NOTE: Token must match instruments master
-            token_map = {
-                "NIFTY": "26000",    # NIFTY spot token
-                "SENSEX": "1"        # SENSEX token (verify from instruments master)
-            }
-            token = token_map[symbol]
+            # ✅ Expiry auto-detect होईल (data_fetch.py मध्ये handle आहे)
+            option_chain = fetch_option_chain(obj, symbol)
+            if option_chain.empty:
+                print(f"⚠️ Option chain empty for {symbol}")
+                continue
 
-            # Fetch LTP
-            ltp_resp = obj.ltpData("NSE", symbol, token)
-            ltp = ltp_resp.get("data", {}).get("ltp")
-
-            msg = f"📊 {symbol} LTP: {ltp}"
-            print(msg)
-            send_telegram_alert(msg)
+            # Analyze option chain
+            signals = analyze_option_chain(option_chain)
+            if signals:
+                msg = f"📊 {symbol} Option Chain Signal: {signals}"
+                print(msg)
+                send_telegram_alert(msg)
 
         except Exception as e:
             print(f"⚠️ Error processing {symbol}: {e}")
 
 
 if __name__ == "__main__":
+    # Run once at start
     run_bot()
+
+    # Schedule every 5 minutes
     schedule.every(5).minutes.do(run_bot)
 
     while True:
         schedule.run_pending()
         time.sleep(1)
+
 

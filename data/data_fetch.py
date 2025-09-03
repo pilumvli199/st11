@@ -31,7 +31,7 @@ def normalize_expiry(expiry_str):
 
 def fetch_option_chain(obj, symbol):
     """
-    Build option chain manually using instruments master + LTP API.
+    Build option chain manually using instruments master + Quote API.
     Auto-picks nearest upcoming expiry for given symbol (e.g., NIFTY, BANKNIFTY).
     """
     try:
@@ -82,12 +82,14 @@ def fetch_option_chain(obj, symbol):
                 else:
                     opt_type = None
 
-                # ✅ Use NFO for options contracts
-                ltp_resp = obj.ltpData("NFO", tsymbol, row["token"])
-                if "data" in ltp_resp and ltp_resp["data"] is not None:
-                    ltp = ltp_resp["data"].get("ltp", None)
+                # ✅ Use Quote API to fetch LTP + OI safely
+                quote = obj.getQuote("NFO", tsymbol, row["token"])
+                if "data" in quote and quote["data"] is not None:
+                    ltp = quote["data"].get("ltp", None)
+                    oi = quote["data"].get("openInterest", 0)  # safe fallback
                 else:
                     ltp = None
+                    oi = 0
 
                 chain_data.append({
                     "tradingsymbol": tsymbol,
@@ -95,10 +97,11 @@ def fetch_option_chain(obj, symbol):
                     "expiry": row.get("expiry"),
                     "option_type": opt_type,
                     "ltp": ltp,
+                    "openInterest": oi,  # <-- always present now
                     "token": row.get("token")
                 })
             except Exception as e:
-                print(f"⚠️ LTP fetch failed for {row.get('symbol', 'UNKNOWN')}: {e}")
+                print(f"⚠️ LTP/OI fetch failed for {row.get('symbol', 'UNKNOWN')}: {e}")
 
         return pd.DataFrame(chain_data)
 

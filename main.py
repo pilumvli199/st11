@@ -1,7 +1,7 @@
-from angel_bot.login.angel_login import angel_login
-from angel_bot.data.data_fetch import fetch_instruments, fetch_option_chain
-from angel_bot.analysis.option_chain_analysis import analyze_option_chain
-from angel_bot.alerts.telegram_bot import send_telegram_alert
+from login.angel_login import angel_login
+from data.data_fetch import fetch_instruments, fetch_option_chain
+from analysis.option_chain_analysis import analyze_option_chain
+from alerts.telegram_bot import send_telegram_alert
 import schedule
 import time
 import os
@@ -33,7 +33,7 @@ def run_bot():
 
     for symbol in watchlist["symbol"].unique():
         try:
-            # ✅ expiry auto-detect होईल (data_fetch.py मध्ये handle झालंय)
+            # ✅ expiry auto-detect होईल
             option_chain = fetch_option_chain(obj, symbol)
             if option_chain.empty:
                 continue
@@ -56,3 +56,4 @@ if __name__ == "__main__":
     while True:
         schedule.run_pending()
         time.sleep(1)
+

@@ -15,6 +15,20 @@ def fetch_instruments():
         return pd.DataFrame()
 
 
+def normalize_expiry(expiry_str):
+    """Try multiple formats to parse expiry string into datetime."""
+    for fmt in ("%Y-%m-%d", "%d-%b-%Y", "%d-%b-%y"):
+        try:
+            return pd.to_datetime(expiry_str, format=fmt)
+        except Exception:
+            continue
+    # fallback: let pandas try automatically
+    try:
+        return pd.to_datetime(expiry_str, errors="coerce")
+    except Exception:
+        return pd.NaT
+
+
 def fetch_option_chain(obj, symbol):
     """
     Build option chain manually using instruments master + LTP API.
@@ -36,19 +50,17 @@ def fetch_option_chain(obj, symbol):
             print(f"⚠️ No option contracts found for {symbol}")
             return pd.DataFrame()
 
-        # Pick nearest valid expiry (>= today)
-        try:
-            expiry_dates = pd.to_datetime(options["expiry"], errors="coerce").dropna().unique()
-            expiry_dates = sorted([e for e in expiry_dates if e >= pd.Timestamp.today()])
-            if not expiry_dates:
-                print(f"⚠️ No valid upcoming expiries for {symbol}")
-                return pd.DataFrame()
-            nearest_expiry = expiry_dates[0].strftime("%Y-%m-%d")
-        except Exception as e:
-            print(f"⚠️ Expiry parsing error: {e}")
-            return pd.DataFrame()
+        # Normalize expiry column
+        options["expiry_parsed"] = options["expiry"].apply(normalize_expiry)
 
-        options = options[options["expiry"] == nearest_expiry]
+        # Pick nearest valid expiry (>= today)
+        expiry_dates = sorted([e for e in options["expiry_parsed"].unique() if pd.notna(e) and e >= pd.Timestamp.today()])
+        if not expiry_dates:
+            print(f"⚠️ No valid upcoming expiries for {symbol}")
+            return pd.DataFrame()
+        nearest_expiry = expiry_dates[0]
+
+        options = options[options["expiry_parsed"] == nearest_expiry]
 
         chain_data = []
         for _, row in options.iterrows():
@@ -82,5 +94,3 @@ def fetch_option_chain(obj, symbol):
     except Exception as e:
         print(f"⚠️ Option chain fetch error: {e}")
         return pd.DataFrame()
-
-    

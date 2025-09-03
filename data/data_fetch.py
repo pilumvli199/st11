@@ -3,6 +3,7 @@ import pandas as pd
 
 ANGEL_INSTRUMENTS_URL = "https://margincalculator.angelbroking.com/OpenAPI_File/files/OpenAPIScripMaster.json"
 
+
 def fetch_instruments():
     try:
         res = requests.get(ANGEL_INSTRUMENTS_URL, timeout=15)
@@ -14,15 +15,24 @@ def fetch_instruments():
         return pd.DataFrame()
 
 
-def fetch_option_chain(obj, symbol, expiry):
+def fetch_option_chain(obj, symbol, expiry=None):
     """
     Build option chain manually using instruments master + LTP API.
+    If expiry is None, it will automatically pick the nearest expiry.
     """
     try:
         instruments = fetch_instruments()
         if instruments.empty:
             print("⚠️ Instruments not available")
             return pd.DataFrame()
+
+        # Choose nearest expiry if not provided
+        if expiry is None:
+            expiries = instruments[instruments["name"] == symbol]["expiry"].unique()
+            if len(expiries) == 0:
+                print(f"⚠️ No expiries found for {symbol}")
+                return pd.DataFrame()
+            expiry = sorted(expiries)[0]  # pick earliest expiry
 
         # Filter options
         options = instruments[

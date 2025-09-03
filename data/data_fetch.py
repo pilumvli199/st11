@@ -48,14 +48,15 @@ def fetch_option_chain(obj, symbol):
         chain_data = []
         for _, row in options.iterrows():
             try:
-                ltp_resp = obj.ltpData("NSE", row["symbol"], row["token"])
-                if "data" in ltp_resp:
+                # ✅ Use tradingsymbol instead of symbol
+                ltp_resp = obj.ltpData("NSE", row["tradingsymbol"], row["token"])
+                if "data" in ltp_resp and ltp_resp["data"] is not None:
                     ltp = ltp_resp["data"].get("ltp", None)
                 else:
                     ltp = None
 
                 chain_data.append({
-                    "tradingsymbol": row["symbol"],
+                    "tradingsymbol": row["tradingsymbol"],
                     "strike": row["strike"],
                     "expiry": row["expiry"],
                     "option_type": row["optiontype"],
@@ -63,7 +64,7 @@ def fetch_option_chain(obj, symbol):
                     "token": row["token"]
                 })
             except Exception as e:
-                print(f"⚠️ LTP fetch failed for {row['symbol']}: {e}")
+                print(f"⚠️ LTP fetch failed for {row['tradingsymbol']}: {e}")
 
         return pd.DataFrame(chain_data)
 

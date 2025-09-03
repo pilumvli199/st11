@@ -22,7 +22,6 @@ def normalize_expiry(expiry_str):
             return pd.to_datetime(expiry_str, format=fmt)
         except Exception:
             continue
-    # fallback: let pandas try automatically
     try:
         return pd.to_datetime(expiry_str, errors="coerce")
     except Exception:
@@ -41,7 +40,6 @@ def fetch_option_chain(obj, symbol):
             print("⚠️ Instruments not available")
             return pd.DataFrame()
 
-        # Filter only option contracts for given symbol
         options = instruments[
             (instruments["name"].str.upper() == symbol.upper()) &
             (instruments["instrumenttype"].isin(["OPTIDX", "OPTSTK"]))
@@ -51,10 +49,7 @@ def fetch_option_chain(obj, symbol):
             print(f"⚠️ No option contracts found for {symbol}")
             return pd.DataFrame()
 
-        # Normalize expiry column
         options["expiry_parsed"] = options["expiry"].apply(normalize_expiry)
-
-        # Pick nearest valid expiry (>= today)
         expiry_dates = sorted(
             [e for e in options["expiry_parsed"].unique() if pd.notna(e) and e >= pd.Timestamp.today()]
         )
@@ -62,20 +57,17 @@ def fetch_option_chain(obj, symbol):
             print(f"⚠️ No valid upcoming expiries for {symbol}")
             return pd.DataFrame()
         nearest_expiry = expiry_dates[0]
-
         options = options[options["expiry_parsed"] == nearest_expiry]
 
         chain_data = []
         for _, row in options.iterrows():
             try:
-                # tradingsymbol / symbol fallback
                 tsymbol = (
                     row["tradingsymbol"]
                     if "tradingsymbol" in options.columns and pd.notna(row.get("tradingsymbol"))
                     else row["symbol"]
                 )
 
-                # option type fallback
                 if "optiontype" in options.columns and pd.notna(row.get("optiontype")):
                     opt_type = row["optiontype"]
                 elif "opttype" in options.columns and pd.notna(row.get("opttype")):
@@ -85,7 +77,7 @@ def fetch_option_chain(obj, symbol):
                 else:
                     opt_type = None
 
-                # ✅ Use ltpData API (no OI support in SDK)
+                # ✅ Use ltpData API (OI not supported in SDK)
                 ltp_resp = obj.ltpData("NFO", tsymbol, row["token"])
                 if "data" in ltp_resp and ltp_resp["data"] is not None:
                     ltp = ltp_resp["data"].get("ltp", None)
@@ -96,7 +88,7 @@ def fetch_option_chain(obj, symbol):
 
                 chain_data.append({
                     "tradingsymbol": tsymbol,
-                    "strikePrice": row.get("strike"),  # <-- FIXED
+                    "strikePrice": float(row.get("strike", 0)),  # ✅ numeric strike
                     "expiry": row.get("expiry"),
                     "option_type": opt_type,
                     "ltp": ltp,

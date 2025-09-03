@@ -65,16 +65,17 @@ def fetch_option_chain(obj, symbol):
         chain_data = []
         for _, row in options.iterrows():
             try:
-                # Handle tradingsymbol / symbol mismatch
-                if "tradingsymbol" in row and pd.notna(row["tradingsymbol"]):
-                    tsymbol = row["tradingsymbol"]
-                else:
-                    tsymbol = row["symbol"]
+                # tradingsymbol / symbol fallback
+                tsymbol = (
+                    row["tradingsymbol"]
+                    if "tradingsymbol" in options.columns and pd.notna(row.get("tradingsymbol"))
+                    else row["symbol"]
+                )
 
-                # Detect option type safely
-                if "optiontype" in row:
+                # option type fallback
+                if "optiontype" in options.columns and pd.notna(row.get("optiontype")):
                     opt_type = row["optiontype"]
-                elif "opttype" in row:
+                elif "opttype" in options.columns and pd.notna(row.get("opttype")):
                     opt_type = row["opttype"]
                 elif isinstance(tsymbol, str) and tsymbol[-2:] in ["CE", "PE"]:
                     opt_type = tsymbol[-2:]

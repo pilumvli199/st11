@@ -71,6 +71,16 @@ def fetch_option_chain(obj, symbol):
                 else:
                     tsymbol = row["symbol"]
 
+                # Detect option type safely
+                if "optiontype" in row:
+                    opt_type = row["optiontype"]
+                elif "opttype" in row:
+                    opt_type = row["opttype"]
+                elif isinstance(tsymbol, str) and tsymbol[-2:] in ["CE", "PE"]:
+                    opt_type = tsymbol[-2:]
+                else:
+                    opt_type = None
+
                 # ✅ Use NFO for options contracts
                 ltp_resp = obj.ltpData("NFO", tsymbol, row["token"])
                 if "data" in ltp_resp and ltp_resp["data"] is not None:
@@ -80,11 +90,11 @@ def fetch_option_chain(obj, symbol):
 
                 chain_data.append({
                     "tradingsymbol": tsymbol,
-                    "strike": row["strike"],
-                    "expiry": row["expiry"],
-                    "option_type": row["optiontype"],
+                    "strike": row.get("strike"),
+                    "expiry": row.get("expiry"),
+                    "option_type": opt_type,
                     "ltp": ltp,
-                    "token": row["token"]
+                    "token": row.get("token")
                 })
             except Exception as e:
                 print(f"⚠️ LTP fetch failed for {row.get('symbol', 'UNKNOWN')}: {e}")

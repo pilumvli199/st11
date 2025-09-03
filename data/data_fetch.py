@@ -85,7 +85,7 @@ def fetch_option_chain(obj, symbol):
                 else:
                     opt_type = None
 
-                # ✅ Use ltpData API (no OI support)
+                # ✅ Use ltpData API (no OI support in SDK)
                 ltp_resp = obj.ltpData("NFO", tsymbol, row["token"])
                 if "data" in ltp_resp and ltp_resp["data"] is not None:
                     ltp = ltp_resp["data"].get("ltp", None)
@@ -96,7 +96,7 @@ def fetch_option_chain(obj, symbol):
 
                 chain_data.append({
                     "tradingsymbol": tsymbol,
-                    "strike": row.get("strike"),
+                    "strikePrice": row.get("strike"),  # <-- FIXED
                     "expiry": row.get("expiry"),
                     "option_type": opt_type,
                     "ltp": ltp,

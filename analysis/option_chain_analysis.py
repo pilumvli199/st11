@@ -2,43 +2,46 @@ import pandas as pd
 
 def analyze_option_chain(option_chain: pd.DataFrame, symbol: str):
     """
-    Analyze option chain for bullish/bearish bias based on CE vs PE.
+    Analyze option chain for bullish/bearish bias and return clean dict for Telegram alerts.
     """
     try:
         if option_chain.empty:
             print(f"⚠️ Option chain empty for {symbol}")
             return None
 
-        # ✅ Ensure strikePrice is numeric
+        # ✅ Ensure numeric
         option_chain["strikePrice"] = pd.to_numeric(option_chain["strikePrice"], errors="coerce")
         option_chain = option_chain.dropna(subset=["strikePrice"])
 
-        # Split CE & PE
         calls = option_chain[option_chain["option_type"] == "CE"]
         puts = option_chain[option_chain["option_type"] == "PE"]
 
+        if calls.empty or puts.empty:
+            print(f"⚠️ Not enough CE/PE data for {symbol}")
+            return None
+
+        # Basic support = lowest strike (PE side), resistance = highest strike (CE side)
+        support = float(puts["strikePrice"].min())
+        resistance = float(calls["strikePrice"].max())
+
         # Total OI
-        total_ce_oi = calls["openInterest"].sum()
-        total_pe_oi = puts["openInterest"].sum()
+        total_ce_oi = int(calls["openInterest"].sum())
+        total_pe_oi = int(puts["openInterest"].sum())
 
-        # Total LTP
-        avg_ce_ltp = calls["ltp"].mean()
-        avg_pe_ltp = puts["ltp"].mean()
+        # Put/Call Ratio
+        pcr = round(total_pe_oi / total_ce_oi, 2) if total_ce_oi > 0 else None
 
-        print(f"\n📊 {symbol} Option Chain Analysis")
-        print(f"Total CE OI: {total_ce_oi}, Avg CE LTP: {avg_ce_ltp}")
-        print(f"Total PE OI: {total_pe_oi}, Avg PE LTP: {avg_pe_ltp}")
+        signal = {
+            "symbol": symbol,
+            "support": int(support),
+            "resistance": int(resistance),
+            "total_CE_OI": total_ce_oi,
+            "total_PE_OI": total_pe_oi,
+            "PCR": pcr,
+        }
 
-        # Simple bias logic
-        if total_ce_oi > total_pe_oi:
-            print(f"⚡ {symbol} Bias: Bearish (Calls > Puts)")
-            return "Bearish"
-        elif total_pe_oi > total_ce_oi:
-            print(f"⚡ {symbol} Bias: Bullish (Puts > Calls)")
-            return "Bullish"
-        else:
-            print(f"⚡ {symbol} Bias: Neutral")
-            return "Neutral"
+        print(f"📊 {symbol} Option Chain Signal: {signal}")
+        return signal
 
     except Exception as e:
         print(f"⚠️ Error analyzing {symbol}: {e}")

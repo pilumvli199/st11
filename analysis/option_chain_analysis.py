@@ -1,36 +1,45 @@
-def analyze_option_chain(option_chain_df):
-    if option_chain_df.empty:
-        return {"error": "No option chain data"}
+import pandas as pd
 
-    ce = option_chain_df[option_chain_df["option_type"] == "CE"]
-    pe = option_chain_df[option_chain_df["option_type"] == "PE"]
+def analyze_option_chain(option_chain: pd.DataFrame, symbol: str):
+    """
+    Analyze option chain for bullish/bearish bias based on CE vs PE.
+    """
+    try:
+        if option_chain.empty:
+            print(f"⚠️ Option chain empty for {symbol}")
+            return None
 
-    ce_resistance = ce.loc[ce["openInterest"].idxmax()] if not ce.empty else None
-    pe_support = pe.loc[pe["openInterest"].idxmax()] if not pe.empty else None
+        # ✅ Ensure strikePrice is numeric
+        option_chain["strikePrice"] = pd.to_numeric(option_chain["strikePrice"], errors="coerce")
+        option_chain = option_chain.dropna(subset=["strikePrice"])
 
-    total_ce_oi = ce["openInterest"].sum() if not ce.empty else 0
-    total_pe_oi = pe["openInterest"].sum() if not pe.empty else 0
-    pcr = round(total_pe_oi / total_ce_oi, 2) if total_ce_oi > 0 else None
+        # Split CE & PE
+        calls = option_chain[option_chain["option_type"] == "CE"]
+        puts = option_chain[option_chain["option_type"] == "PE"]
 
-    avg_iv_ce = round(ce["impliedVolatility"].mean(), 2) if "impliedVolatility" in ce else None
-    avg_iv_pe = round(pe["impliedVolatility"].mean(), 2) if "impliedVolatility" in pe else None
+        # Total OI
+        total_ce_oi = calls["openInterest"].sum()
+        total_pe_oi = puts["openInterest"].sum()
 
-    atm_strike = option_chain_df.iloc[(option_chain_df["strikePrice"] - option_chain_df["strikePrice"].median()).abs().argsort()[:1]]
-    greeks = {}
-    if not atm_strike.empty:
-        row = atm_strike.iloc[0]
-        greeks = {
-            "delta": row.get("delta", None),
-            "gamma": row.get("gamma", None),
-            "theta": row.get("theta", None),
-            "vega": row.get("vega", None),
-        }
+        # Total LTP
+        avg_ce_ltp = calls["ltp"].mean()
+        avg_pe_ltp = puts["ltp"].mean()
 
-    return {
-        "support": pe_support["strikePrice"] if pe_support is not None else None,
-        "resistance": ce_resistance["strikePrice"] if ce_resistance is not None else None,
-        "pcr": pcr,
-        "avg_iv_ce": avg_iv_ce,
-        "avg_iv_pe": avg_iv_pe,
-        "greeks": greeks,
-    }
+        print(f"\n📊 {symbol} Option Chain Analysis")
+        print(f"Total CE OI: {total_ce_oi}, Avg CE LTP: {avg_ce_ltp}")
+        print(f"Total PE OI: {total_pe_oi}, Avg PE LTP: {avg_pe_ltp}")
+
+        # Simple bias logic
+        if total_ce_oi > total_pe_oi:
+            print(f"⚡ {symbol} Bias: Bearish (Calls > Puts)")
+            return "Bearish"
+        elif total_pe_oi > total_ce_oi:
+            print(f"⚡ {symbol} Bias: Bullish (Puts > Calls)")
+            return "Bullish"
+        else:
+            print(f"⚡ {symbol} Bias: Neutral")
+            return "Neutral"
+
+    except Exception as e:
+        print(f"⚠️ Error analyzing {symbol}: {e}")
+        return None

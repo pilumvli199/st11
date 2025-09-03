@@ -31,8 +31,9 @@ def normalize_expiry(expiry_str):
 
 def fetch_option_chain(obj, symbol):
     """
-    Build option chain manually using instruments master + Quote API.
+    Build option chain manually using instruments master + LTP API.
     Auto-picks nearest upcoming expiry for given symbol (e.g., NIFTY, BANKNIFTY).
+    Note: Open Interest (OI) not available via SmartAPI SDK, defaulted to 0.
     """
     try:
         instruments = fetch_instruments()
@@ -54,7 +55,9 @@ def fetch_option_chain(obj, symbol):
         options["expiry_parsed"] = options["expiry"].apply(normalize_expiry)
 
         # Pick nearest valid expiry (>= today)
-        expiry_dates = sorted([e for e in options["expiry_parsed"].unique() if pd.notna(e) and e >= pd.Timestamp.today()])
+        expiry_dates = sorted(
+            [e for e in options["expiry_parsed"].unique() if pd.notna(e) and e >= pd.Timestamp.today()]
+        )
         if not expiry_dates:
             print(f"⚠️ No valid upcoming expiries for {symbol}")
             return pd.DataFrame()
@@ -82,14 +85,14 @@ def fetch_option_chain(obj, symbol):
                 else:
                     opt_type = None
 
-                # ✅ Use Quote API to fetch LTP + OI safely
-                quote = obj.getQuote("NFO", tsymbol, row["token"])
-                if "data" in quote and quote["data"] is not None:
-                    ltp = quote["data"].get("ltp", None)
-                    oi = quote["data"].get("openInterest", 0)  # safe fallback
+                # ✅ Use ltpData API (no OI support)
+                ltp_resp = obj.ltpData("NFO", tsymbol, row["token"])
+                if "data" in ltp_resp and ltp_resp["data"] is not None:
+                    ltp = ltp_resp["data"].get("ltp", None)
                 else:
                     ltp = None
-                    oi = 0
+
+                oi = 0  # OI not available via SmartAPI SDK
 
                 chain_data.append({
                     "tradingsymbol": tsymbol,
@@ -97,11 +100,11 @@ def fetch_option_chain(obj, symbol):
                     "expiry": row.get("expiry"),
                     "option_type": opt_type,
                     "ltp": ltp,
-                    "openInterest": oi,  # <-- always present now
+                    "openInterest": oi,
                     "token": row.get("token")
                 })
             except Exception as e:
-                print(f"⚠️ LTP/OI fetch failed for {row.get('symbol', 'UNKNOWN')}: {e}")
+                print(f"⚠️ LTP fetch failed for {row.get('symbol', 'UNKNOWN')}: {e}")
 
         return pd.DataFrame(chain_data)
 

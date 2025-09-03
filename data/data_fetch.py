@@ -1,44 +1,6 @@
 import requests
 import pandas as pd
 
-ANGEL_OPTIONCHAIN_URL = "https://apiconnect.angelbroking.com/rest/secure/angelbroking/market/v1/optionchain"
-
-def fetch_option_chain(api_key, client_id, jwt_token, symbol, expiry):
-    headers = {
-        "X-PrivateKey": api_key,
-        "X-ClientLocalIP": "127.0.0.1",
-        "X-ClientPublicIP": "127.0.0.1",
-        "X-MACAddress": "00:00:00:00:00:00",
-        "X-UserType": "USER",
-        "X-SourceID": "WEB",
-        "X-ClientID": client_id,
-        "Authorization": f"Bearer {jwt_token}",
-        "Content-Type": "application/json"
-    }
-
-    payload = {"symbol": symbol, "expirydate": expiry}
-
-    try:
-        res = requests.post(ANGEL_OPTIONCHAIN_URL, headers=headers, json=payload, timeout=15)
-        res.raise_for_status()
-        data = res.json()
-
-        ce = data.get("data", {}).get("CE", [])
-        pe = data.get("data", {}).get("PE", [])
-
-        ce_df = pd.DataFrame(ce)
-        pe_df = pd.DataFrame(pe)
-
-        ce_df["option_type"] = "CE"
-        pe_df["option_type"] = "PE"
-
-        return pd.concat([ce_df, pe_df], ignore_index=True)
-    except Exception as e:
-        print(f"⚠️ Option chain fetch error: {e}")
-        return pd.DataFrame()
-
-
-
 ANGEL_INSTRUMENTS_URL = "https://margincalculator.angelbroking.com/OpenAPI_File/files/OpenAPIScripMaster.json"
 
 def fetch_instruments():
@@ -50,3 +12,52 @@ def fetch_instruments():
     except Exception as e:
         print(f"⚠️ Instruments fetch error: {e}")
         return pd.DataFrame()
+
+
+def fetch_option_chain(obj, symbol, expiry):
+    """
+    Build option chain manually using instruments master + LTP API.
+    """
+    try:
+        instruments = fetch_instruments()
+        if instruments.empty:
+            print("⚠️ Instruments not available")
+            return pd.DataFrame()
+
+        # Filter options
+        options = instruments[
+            (instruments["name"] == symbol) &
+            (instruments["expiry"] == expiry) &
+            (instruments["instrumenttype"].isin(["OPTIDX", "OPTSTK"]))
+        ].copy()
+
+        if options.empty:
+            print(f"⚠️ No options found for {symbol} {expiry}")
+            return pd.DataFrame()
+
+        chain_data = []
+        for _, row in options.iterrows():
+            try:
+                ltp_resp = obj.ltpData("NSE", row["symbol"], row["token"])
+                if "data" in ltp_resp:
+                    ltp = ltp_resp["data"].get("ltp", None)
+                else:
+                    ltp = None
+
+                chain_data.append({
+                    "symbol": row["symbol"],
+                    "strike": row["strike"],
+                    "expiry": row["expiry"],
+                    "option_type": row["optiontype"],
+                    "ltp": ltp,
+                    "token": row["token"]
+                })
+            except Exception as e:
+                print(f"⚠️ LTP fetch failed for {row['symbol']}: {e}")
+
+        return pd.DataFrame(chain_data)
+
+    except Exception as e:
+        print(f"⚠️ Option chain fetch error: {e}")
+        return pd.DataFrame()
+

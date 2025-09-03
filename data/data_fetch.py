@@ -15,10 +15,10 @@ def fetch_instruments():
         return pd.DataFrame()
 
 
-def fetch_option_chain(obj, symbol, expiry=None):
+def fetch_option_chain(obj, symbol):
     """
     Build option chain manually using instruments master + LTP API.
-    If expiry is None, it will automatically pick the nearest expiry.
+    Auto-picks nearest expiry for given symbol (e.g., NIFTY, BANKNIFTY).
     """
     try:
         instruments = fetch_instruments()
@@ -26,24 +26,24 @@ def fetch_option_chain(obj, symbol, expiry=None):
             print("⚠️ Instruments not available")
             return pd.DataFrame()
 
-        # Choose nearest expiry if not provided
-        if expiry is None:
-            expiries = instruments[instruments["name"] == symbol]["expiry"].unique()
-            if len(expiries) == 0:
-                print(f"⚠️ No expiries found for {symbol}")
-                return pd.DataFrame()
-            expiry = sorted(expiries)[0]  # pick earliest expiry
-
-        # Filter options
+        # Filter only option contracts for given symbol
         options = instruments[
-            (instruments["name"] == symbol) &
-            (instruments["expiry"] == expiry) &
+            (instruments["name"].str.upper() == symbol.upper()) &
             (instruments["instrumenttype"].isin(["OPTIDX", "OPTSTK"]))
         ].copy()
 
         if options.empty:
-            print(f"⚠️ No options found for {symbol} {expiry}")
+            print(f"⚠️ No option contracts found for {symbol}")
             return pd.DataFrame()
+
+        # Pick nearest expiry
+        expiries = sorted(options["expiry"].unique())
+        if not expiries:
+            print(f"⚠️ No expiries found for {symbol}")
+            return pd.DataFrame()
+        expiry = expiries[0]
+
+        options = options[options["expiry"] == expiry]
 
         chain_data = []
         for _, row in options.iterrows():
@@ -55,7 +55,7 @@ def fetch_option_chain(obj, symbol, expiry=None):
                     ltp = None
 
                 chain_data.append({
-                    "symbol": row["symbol"],
+                    "tradingsymbol": row["symbol"],
                     "strike": row["strike"],
                     "expiry": row["expiry"],
                     "option_type": row["optiontype"],
@@ -70,4 +70,3 @@ def fetch_option_chain(obj, symbol, expiry=None):
     except Exception as e:
         print(f"⚠️ Option chain fetch error: {e}")
         return pd.DataFrame()
-
